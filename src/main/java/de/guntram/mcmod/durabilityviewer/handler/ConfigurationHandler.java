@@ -2,10 +2,12 @@ package de.guntram.mcmod.durabilityviewer.handler;
 
 import de.guntram.mcmod.durabilityviewer.DurabilityViewer;
 import de.guntram.mcmod.durabilityviewer.client.gui.Corner;
-import de.guntram.mcmod.fabrictools.ConfigChangedEvent;
-import de.guntram.mcmod.fabrictools.Configuration;
-import de.guntram.mcmod.fabrictools.ModConfigurationHandler;
+
 import java.io.File;
+
+import de.guntram.mcmod.durabilityviewer.fabrictools.ConfigChangedEvent;
+import de.guntram.mcmod.durabilityviewer.fabrictools.Configuration;
+import de.guntram.mcmod.durabilityviewer.fabrictools.ModConfigurationHandler;
 import net.minecraft.util.Formatting;
 
 public class ConfigurationHandler implements ModConfigurationHandler
