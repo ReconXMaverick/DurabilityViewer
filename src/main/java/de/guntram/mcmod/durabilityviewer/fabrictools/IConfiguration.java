@@ -13,14 +13,14 @@ import java.util.List;
  */
 public interface IConfiguration {
     
-    public List<String> getKeys();
-    public Object getValue(String option);
-    public boolean setValue(String option, Object value);
+    List<String> getKeys();
+    Object getValue(String option);
+    boolean setValue(String option, Object value);
     
-    public Object getDefault(String option);
-    public Object getMin(String option);
-    public Object getMax(String option);
-    public String getTooltip(String option);
+    Object getDefault(String option);
+    Object getMin(String option);
+    Object getMax(String option);
+    String getTooltip(String option);
 
     boolean isSelectList(String option);
     String[] getListOptions(String option);

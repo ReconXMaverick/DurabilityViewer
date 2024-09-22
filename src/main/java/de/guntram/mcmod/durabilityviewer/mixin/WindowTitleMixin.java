@@ -20,7 +20,7 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 @Mixin(MinecraftClient.class)
 public class WindowTitleMixin {
     @Inject(method="getWindowTitle", at=@At("HEAD"), cancellable=true)
-    private void patchWindowTitle(CallbackInfoReturnable cir) {
+    private void patchWindowTitle(CallbackInfoReturnable<String> cir) {
         if (ConfigurationHandler.showPlayerServerName()) {
             if (DurabilityViewer.getWindowTitle() != null) {
                 cir.setReturnValue(DurabilityViewer.getWindowTitle());
