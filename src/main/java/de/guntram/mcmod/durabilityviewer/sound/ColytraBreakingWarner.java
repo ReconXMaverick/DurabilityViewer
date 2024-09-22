@@ -22,16 +22,17 @@ public class ColytraBreakingWarner extends ItemBreakingWarner {
     
     @Override
     public boolean checkBreaks(ItemStack stack) {
-        if (stack.getNbt() == null  || !stack.getNbt().contains("colytra:ElytraUpgrade")) {
+        //TODO Reimplement if mod updates
+        /*if (stack.getNbt() == null  || !stack.getNbt().contains("colytra:ElytraUpgrade")) {
             return false;
-        }
+        }*/
         
-        int damage;
-        try {
+        int damage = 0;
+        /*try {
             damage = stack.getNbt().getCompound("colytra:ElytraUpgrade").getCompound("tag").getInt("Damage");
         } catch (Exception ex) {
             return false;
-        }
+        }*/
         
         if (elytraMaxDamage == 0) {
             elytraMaxDamage = new ItemStack(Items.ELYTRA).getMaxDamage();

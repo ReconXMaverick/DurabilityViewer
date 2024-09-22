@@ -2,22 +2,24 @@ package de.guntram.mcmod.durabilityviewer.mixin;
 
 import de.guntram.mcmod.durabilityviewer.handler.ConfigurationHandler;
 import java.util.List;
-import java.util.TreeSet;
 import net.minecraft.client.gui.screen.Screen;
-import net.minecraft.client.item.TooltipContext;
 import net.minecraft.client.resource.language.I18n;
+import net.minecraft.component.Component;
+import net.minecraft.component.ComponentMap;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.player.PlayerEntity;
+import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
-import net.minecraft.nbt.NbtCompound;
-import net.minecraft.nbt.NbtElement;
-import net.minecraft.nbt.NbtList;
+import net.minecraft.item.tooltip.TooltipType;
+import net.minecraft.registry.Registries;
 import net.minecraft.text.Text;
+import org.apache.commons.compress.compressors.lzw.LZWInputStream;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Shadow;
+import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
-import org.spongepowered.asm.mixin.injection.callback.LocalCapture;
 
 @Mixin(ItemStack.class)
 public abstract class TooltipMixin {
@@ -26,16 +28,14 @@ public abstract class TooltipMixin {
     @Shadow public abstract boolean isDamaged();
     @Shadow public abstract int getMaxDamage();
     @Shadow public abstract int getDamage();
-    @Shadow public abstract NbtCompound getNbt();
+    @Shadow public abstract ComponentMap getComponents();
     
 //    @Inject(method="getTooltip(Lnet/minecraft/entity/player/EntityPlayer;Lnet/minecraft/client/util/ITooltipFlag;)Ljava/util/List",
-    @Inject(method="getTooltip",            
-            at=@At("RETURN"), locals=LocalCapture.CAPTURE_FAILHARD)
-    private void getTooltipdone(PlayerEntity playerIn, TooltipContext advanced, 
-            CallbackInfoReturnable<List> ci,
-            List<Text> list) {
-        
-        if (!advanced.isAdvanced() && !this.isEmpty()) {
+    /*@Inject(method="getTooltip",
+            at=@At("RETURN"), cancellable = true)
+    private void getTooltipdone(Item.TooltipContext context, PlayerEntity player, TooltipType type, CallbackInfoReturnable<List<Text>> cir) {
+        List<Text> list = cir.getReturnValue();
+        if (!type.isAdvanced() && !this.isEmpty()) {
             if (this.isDamaged()) {
                 Text toolTip = Text.literal(I18n.translate("tooltip.durability",
                         (this.getMaxDamage()- this.getDamage())+
@@ -49,15 +49,27 @@ public abstract class TooltipMixin {
         }
 
         if (Screen.hasAltDown()) {
-            NbtCompound tag=this.getNbt();
-            if (tag != null) {
-                addNbtCompound("", list, tag);
+            ComponentMap cMap = this.getComponents();
+            if (cMap != null) {
+                addNbtCompound("", list, cMap);
             }
         }
-    }
-    
-    private void addNbtCompound(String prefix, List<Text>list, NbtCompound tag) {
-        TreeSet<String> sortedKeys = new TreeSet(tag.getKeys());
+        cir.setReturnValue(list);
+    }*/
+    @Unique
+    private void addNbtCompound(String prefix, List<Text>list, ComponentMap cMap) {
+        for(Component<?> t : cMap){
+            if(t.value() instanceof Integer) list.add(Text.literal(prefix + Registries.DATA_COMPONENT_TYPE.getEntry(t.type())+": §3"+t.value()));
+            else if(t.value() instanceof Double) list.add(Text.literal(prefix + Registries.DATA_COMPONENT_TYPE.getEntry(t.type())+": §6"+t.value()));
+            else if(t.value() instanceof Text txt) list.add(Text.literal(prefix + Registries.DATA_COMPONENT_TYPE.getEntry(t.type())+": §8"+txt.getLiteralString()));
+            else if(t.value() instanceof List<?> ls) list.add(Text.literal(prefix + Registries.DATA_COMPONENT_TYPE.getEntry(t.type())+": §9"+ls.size()));
+
+
+        }
+        /*
+
+
+        TreeSet<String> sortedKeys = new TreeSet(cMap);
         for (String key: sortedKeys) {
             NbtElement elem=tag.get(key);
             switch(elem.getType()) {
@@ -68,11 +80,13 @@ public abstract class TooltipMixin {
                 case 9: list.add(Text.literal(prefix+key+": §9List, "+((NbtList)elem).size()+" items")); break;
                 case 10:list.add(Text.literal(prefix+key+": §aCompound"));
                         if (Screen.hasShiftDown()) {
+                            //Recursively render list
                             addNbtCompound(prefix+"    ", list, (NbtCompound)elem);
                         }
                         break;
-                default:list.add(Text.literal(prefix+key+": Type "+elem.getType())); break;
+                default:
+                    list.add(Text.literal(prefix+key+": Type "+elem.getType())); break;
             }
-        }
+        }*/
     }
 }
