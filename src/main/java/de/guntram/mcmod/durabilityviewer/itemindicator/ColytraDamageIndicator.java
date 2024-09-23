@@ -26,13 +26,15 @@ public class ColytraDamageIndicator extends ItemDamageIndicator {
     }
     
     private int getDamage() {
-        int damage;
+        /*int damage;
         try {
+            //See: https://fabricmc.net/2024/04/19/1205.html
             damage = stack.getNbt().getCompound("colytra:ElytraUpgrade").getCompound("tag").getInt("Damage");
             return damage;
         } catch (Exception ex) {
             return 0;
-        }
+        }*/
+        return 0;         //TODO Fix later remove me!
     }
 
     @Override
@@ -48,11 +50,6 @@ public class ColytraDamageIndicator extends ItemDamageIndicator {
     @Override
     public boolean isEmpty() {
         return false;
-    }
-
-    @Override
-    public boolean isItemStackDamageable() {
-        return true;
     }
 
     @Override

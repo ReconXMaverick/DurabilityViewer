@@ -18,7 +18,7 @@ public class ConfigChangedEvent {
         }
         public String getModID() {
             return mod;
-        };
+        }
     }
     
     public static class OnConfigChangingEvent extends ConfigChangedEvent {

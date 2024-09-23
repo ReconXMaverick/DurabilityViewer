@@ -37,11 +37,6 @@ public class InventorySlotsIndicator implements ItemIndicator {
     }
 
     @Override
-    public boolean isItemStackDamageable() {
-        return true;
-    }
-
-    @Override
     public ItemStack getItemStack() {
         return stack;
     }

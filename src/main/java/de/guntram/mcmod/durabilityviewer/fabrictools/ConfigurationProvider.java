@@ -50,8 +50,7 @@ public class ConfigurationProvider {
         if (!(dir.isDirectory())) {
             System.err.println("Can't make directory "+dir.getAbsolutePath()+", config subsystem will not work");
         }
-        File suggestion=new File(dir, modid+".json");
-        return suggestion;
+        return new File(dir, modid+".json");
     }
     
     public static Set<String> getRegisteredMods() {

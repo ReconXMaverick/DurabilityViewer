@@ -63,11 +63,6 @@ public class ItemDamageIndicator implements ItemIndicator {
     }
 
     @Override
-    public boolean isItemStackDamageable() {
-        return alwaysAssumeDamageable || stack.isDamageable();
-    }
-
-    @Override
     public ItemStack getItemStack() {
         return stack;
     }

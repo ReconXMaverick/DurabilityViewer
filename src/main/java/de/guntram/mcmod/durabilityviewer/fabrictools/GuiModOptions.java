@@ -63,13 +63,6 @@ public class GuiModOptions {
                         .setTooltip(Text.translatable(ic.getTooltip(option)))
                         .setSaveConsumer(newValue -> ic.setValue(option, newValue))
                         .build());
-            } else if (value instanceof Float) {
-                clientCategory.addEntry(entryBuilder.startFloatField(Text.translatable(option), (float) value)
-                        .setMin((float) ic.getMin(option))
-                        .setMax((float) ic.getMax(option))
-                        .setTooltip(Text.translatable(ic.getTooltip(option)))
-                        .setSaveConsumer(newValue -> ic.setValue(option, newValue))
-                        .build());
             } else if (value instanceof Float || value instanceof Double) {
                 clientCategory.addEntry(entryBuilder.startDoubleField(Text.translatable(option), (double) value)
                         .setMin((double) ic.getMin(option))

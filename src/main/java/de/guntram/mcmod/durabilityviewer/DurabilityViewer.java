@@ -1,9 +1,8 @@
 package de.guntram.mcmod.durabilityviewer;
 
-import de.guntram.mcmod.crowdintranslate.CrowdinTranslate;
 import de.guntram.mcmod.durabilityviewer.client.gui.GuiItemDurability;
+import de.guntram.mcmod.durabilityviewer.fabrictools.ConfigurationProvider;
 import de.guntram.mcmod.durabilityviewer.handler.ConfigurationHandler;
-import de.guntram.mcmod.fabrictools.ConfigurationProvider;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.keybinding.v1.KeyBindingHelper;
@@ -26,7 +25,6 @@ public class DurabilityViewer implements ClientModInitializer
     
     @Override
     public void onInitializeClient() {
-        CrowdinTranslate.downloadTranslations(MODID);
         setKeyBindings();
         confHandler=ConfigurationHandler.getInstance();
         ConfigurationProvider.register(MODNAME, confHandler);

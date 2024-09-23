@@ -28,7 +28,7 @@ public class ItemBreakingWarner {
         Identifier location;
         
         if (sound==null) {
-            location=new Identifier(DurabilityViewer.MODID, "tool_breaking");
+            location=Identifier.of(DurabilityViewer.MODID, "tool_breaking");
             sound=SoundEvent.of(location);
         }
     }

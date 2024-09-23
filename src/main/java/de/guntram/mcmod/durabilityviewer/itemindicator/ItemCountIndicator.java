@@ -1,6 +1,5 @@
 package de.guntram.mcmod.durabilityviewer.itemindicator;
 
-import static de.guntram.mcmod.durabilityviewer.itemindicator.ItemIndicator.color_white;
 import net.minecraft.item.ItemStack;
 
 public class ItemCountIndicator implements ItemIndicator {
@@ -30,11 +29,6 @@ public class ItemCountIndicator implements ItemIndicator {
     @Override
     public boolean isEmpty() {
         return stack==null || stack.isEmpty();
-    }
-
-    @Override
-    public boolean isItemStackDamageable() {
-        return true;
     }
 
     @Override

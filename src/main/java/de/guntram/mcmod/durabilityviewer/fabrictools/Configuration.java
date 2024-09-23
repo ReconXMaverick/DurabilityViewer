@@ -190,8 +190,7 @@ public class Configuration implements IConfiguration {
             item.setValue((Float) value);
             return item.getValue();
         } else if (item.getValue().getClass() == ConfigurationMinecraftColor.class && clazz == Integer.class) {
-            int  result = ((ConfigurationMinecraftColor)item.getValue()).colorIndex;
-            return result;
+            return ((ConfigurationMinecraftColor)item.getValue()).colorIndex;
         } else if (item.getValue().getClass() == ConfigurationTrueColor.class && clazz == Integer.class) {
             ConfigurationTrueColor tC = ((ConfigurationTrueColor)item.getValue());
             return tC.getInt();
@@ -267,7 +266,7 @@ public class Configuration implements IConfiguration {
     
     @Override
     public List<String> getKeys() {
-        List list=new ArrayList(items.keySet());
+        List<String> list=new ArrayList<>(items.keySet());
         Collections.sort(list);
         return list;
     }

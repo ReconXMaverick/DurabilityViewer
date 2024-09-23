@@ -3,7 +3,6 @@ package de.guntram.mcmod.durabilityviewer.client.gui;
 import com.google.common.collect.Ordering;
 import com.mojang.blaze3d.systems.RenderSystem;
 import de.guntram.mcmod.durabilityviewer.handler.ConfigurationHandler;
-import de.guntram.mcmod.durabilityviewer.itemindicator.ColytraDamageIndicator;
 import de.guntram.mcmod.durabilityviewer.itemindicator.InventorySlotsIndicator;
 import de.guntram.mcmod.durabilityviewer.itemindicator.ItemCountIndicator;
 import de.guntram.mcmod.durabilityviewer.itemindicator.ItemDamageIndicator;
@@ -16,24 +15,28 @@ import dev.emi.trinkets.api.TrinketsApi;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Predicate;
+
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.render.item.ItemRenderer;
 import net.minecraft.client.util.Window;
-import net.minecraft.client.util.math.MatrixStack;
+import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.EquipmentSlot;
 import net.minecraft.entity.LivingEntity;
 import net.minecraft.entity.effect.StatusEffect;
 import net.minecraft.entity.effect.StatusEffectInstance;
 import net.minecraft.entity.player.PlayerEntity;
-import net.minecraft.item.ArrowItem;
-import net.minecraft.item.ItemStack;
-import net.minecraft.item.RangedWeaponItem;
+import net.minecraft.item.*;
+import net.minecraft.text.Text;
 import net.minecraft.util.Arm;
+import net.minecraft.util.Pair;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import team.reborn.energy.EnergyHolder;
+import org.joml.Matrix4fStack;
+import team.reborn.energy.api.EnergyStorageUtil;
 
 
 public class GuiItemDurability
@@ -43,7 +46,6 @@ public class GuiItemDurability
     private final MinecraftClient minecraft;
     private static boolean visible;
     private final TextRenderer fontRenderer;
-    private final ItemRenderer itemRenderer;
     
     private long lastWarningTime;
     private ItemStack lastWarningItem;
@@ -57,7 +59,7 @@ public class GuiItemDurability
     
     private ItemBreakingWarner mainHandWarner, offHandWarner, helmetWarner, chestWarner, pantsWarner, bootsWarner;
     private ItemBreakingWarner colytraWarner;
-    private ItemBreakingWarner trinketWarners[];
+    private ItemBreakingWarner[] trinketWarners;
     
     public static void toggleVisibility() {
         visible=!visible;
@@ -66,7 +68,6 @@ public class GuiItemDurability
     public GuiItemDurability() {
         minecraft = MinecraftClient.getInstance();
         fontRenderer = minecraft.textRenderer;
-        itemRenderer = minecraft.getItemRenderer();
         visible=true;
         
         mainHandWarner=new ItemBreakingWarner();
@@ -76,9 +77,7 @@ public class GuiItemDurability
         pantsWarner=new ItemBreakingWarner();
         bootsWarner=new ItemBreakingWarner();
         colytraWarner=new ColytraBreakingWarner();
-        
-        try {
-            Class.forName("dev.emi.trinkets.api.TrinketsApi");
+        if (FabricLoader.getInstance().isModLoaded("trinkets")) {
             LOGGER.info("Using trinkets in DurabilityViewer");
             int slotCount = getTrinketSlotCount(minecraft.player);
             haveTrinketsApi = (slotCount > 0);
@@ -86,48 +85,46 @@ public class GuiItemDurability
             for (int i=0; i<trinketWarners.length; i++) {
                 trinketWarners[i]=new ItemBreakingWarner();
             }
-        } catch (ClassNotFoundException ex) {
+        } else {
             LOGGER.info("DurabilityViewer did not find Trinkets API");
             trinketWarners = new ItemBreakingWarner[0];
         }
-        try {
-            Class.forName("team.reborn.energy.EnergyHolder");
+
+        if (FabricLoader.getInstance().isModLoaded("techreborn") ) {
             haveTRCore = true;
-        } catch (ClassNotFoundException ex) {
+        } else {
             LOGGER.info("DurabilityViewer did not find Tech Reborn");
         }
     }
-    
-    private int getInventoryArrowCount() {
-        int arrows = 0;
-        for (final ItemStack stack : minecraft.player.getInventory().main) {
-            if (isArrow(stack)) {
-                arrows += stack.getCount();
-            }
+
+    private int getSimilarCount(ItemStack comparator){
+        int count = 0;
+        for (final ItemStack stack : minecraft.player.getInventory().main){
+            if(ItemStack.areItemsAndComponentsEqual(stack,comparator)) count+= stack.getCount();
         }
-        return arrows;
+        final ItemStack stack = minecraft.player.getOffHandStack();
+        if(ItemStack.areItemsAndComponentsEqual(stack,comparator)) count+=stack.getCount();
+    return count;
     }
     
-    private ItemStack getFirstArrowStack() {
-        if (isArrow(minecraft.player.getOffHandStack())) {
+    private ItemStack getFirstProjectileStack(RangedWeaponItem item) {
+        Predicate<ItemStack> validProjectiles = item.getProjectiles();
+        if (validProjectiles.test(minecraft.player.getOffHandStack())) {
             return minecraft.player.getOffHandStack();
         }
-        if (isArrow(minecraft.player.getMainHandStack())) {
+        if (validProjectiles.test(minecraft.player.getMainHandStack())) {
             return minecraft.player.getMainHandStack();
         }
         int size=minecraft.player.getInventory().size();
         for (int i = 0; i < size; ++i) {
             final ItemStack itemstack = minecraft.player.getInventory().getStack(i);
-            if (this.isArrow(itemstack)) {
+            if (validProjectiles.test(itemstack)) {
                 return itemstack;
             }
         }
         return null;
     }
-    
-    private boolean isArrow(final ItemStack stack) {
-        return !stack.isEmpty() && stack.getItem() instanceof ArrowItem;
-    }
+
 
     private class RenderSize {
         int width;
@@ -139,40 +136,41 @@ public class GuiItemDurability
     }
     
     private enum RenderPos {
-        left, over, right;
+        left, over, right
     }
 
     public void onRenderGameOverlayPost(DrawContext context, float partialTicks) {
 
-        PlayerEntity player = (PlayerEntity) minecraft.player;
+        PlayerEntity player = minecraft.player;
         ItemStack needToWarn=null;
         
         ItemIndicator mainHand, offHand;
-        mainHand = damageOrEnergy(player, EquipmentSlot.MAINHAND);
-        offHand  = damageOrEnergy(player, EquipmentSlot.OFFHAND);
+        mainHand = indicatorType(player, EquipmentSlot.MAINHAND);
+        offHand  = indicatorType(player, EquipmentSlot.OFFHAND);
         
         ItemStack chestItem = player.getEquippedStack(EquipmentSlot.CHEST);
         ItemIndicator colytra = null;
-        if (chestItem != null && chestItem.getNbt()!= null && chestItem.getNbt().contains("colytra:ElytraUpgrade")) {
+        //TODO Temporarily disabled as colytra is not updated.
+        /*if (chestItem != null && chestItem.getNbt()!= null && chestItem.getNbt().contains("colytra:ElytraUpgrade")) {
             colytra = new ColytraDamageIndicator(chestItem);
-        }
+        }*/
         
-        ItemIndicator boots = new ItemDamageIndicator(player.getEquippedStack(EquipmentSlot.FEET));
-        ItemIndicator leggings = new ItemDamageIndicator(player.getEquippedStack(EquipmentSlot.LEGS));
-        ItemIndicator chestplate = new ItemDamageIndicator(chestItem);
-        ItemIndicator helmet = new ItemDamageIndicator(player.getEquippedStack(EquipmentSlot.HEAD));
-        ItemIndicator arrows = null;
+        ItemIndicator boots = indicatorType(player,EquipmentSlot.FEET);
+        ItemIndicator leggings = indicatorType(player,EquipmentSlot.LEGS);
+        ItemIndicator chestplate = indicatorType(player,EquipmentSlot.CHEST);
+        ItemIndicator helmet = indicatorType(player,EquipmentSlot.HEAD);
+        ItemIndicator projectiles = null;
         ItemIndicator invSlots = (ConfigurationHandler.getShowChestIcon() ? new InventorySlotsIndicator(minecraft.player.getInventory()) : null);
 
-        if (needToWarn == null && mainHandWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.MAINHAND))) needToWarn = player.getEquippedStack(EquipmentSlot.MAINHAND);
-        if (needToWarn == null && offHandWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.OFFHAND))) needToWarn = player.getEquippedStack(EquipmentSlot.OFFHAND);
-        if (needToWarn == null && bootsWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.FEET))) needToWarn = player.getEquippedStack(EquipmentSlot.FEET);
-        if (needToWarn == null && pantsWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.LEGS))) needToWarn = player.getEquippedStack(EquipmentSlot.LEGS);
-        if (needToWarn == null && chestWarner.checkBreaks(chestItem)) needToWarn = chestItem;
-        if (needToWarn == null && helmetWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.HEAD))) needToWarn = player.getEquippedStack(EquipmentSlot.HEAD);
-        if (needToWarn == null && colytraWarner.checkBreaks(chestItem)) needToWarn = chestItem;
+        if (mainHandWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.MAINHAND))) needToWarn = player.getEquippedStack(EquipmentSlot.MAINHAND);
+        if (offHandWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.OFFHAND))) needToWarn = player.getEquippedStack(EquipmentSlot.OFFHAND);
+        if (bootsWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.FEET))) needToWarn = player.getEquippedStack(EquipmentSlot.FEET);
+        if (pantsWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.LEGS))) needToWarn = player.getEquippedStack(EquipmentSlot.LEGS);
+        if (chestWarner.checkBreaks(chestItem)) needToWarn = chestItem;
+        if (helmetWarner.checkBreaks(player.getEquippedStack(EquipmentSlot.HEAD))) needToWarn = player.getEquippedStack(EquipmentSlot.HEAD);
+        if (colytraWarner.checkBreaks(chestItem)) needToWarn = chestItem;
 
-        ItemIndicator[] trinkets = null;
+        ItemIndicator[] trinkets;
         if (haveTrinketsApi) {
             List<ItemStack> equipped = getTrinkets(player);
             
@@ -218,10 +216,12 @@ public class GuiItemDurability
             return;
         }
 
-        
-        if (mainHand.getItemStack().getItem() instanceof RangedWeaponItem
-        ||   offHand.getItemStack().getItem() instanceof RangedWeaponItem) {
-            arrows=new ItemCountIndicator(getFirstArrowStack(), getInventoryArrowCount());
+        if (mainHand.getItemStack().getItem() instanceof RangedWeaponItem rwi)
+            projectiles = new ItemCountIndicator(getFirstProjectileStack(rwi),
+                    getSimilarCount(getFirstProjectileStack(rwi)));
+        else if (offHand.getItemStack().getItem() instanceof RangedWeaponItem rwi){
+            projectiles = new ItemCountIndicator(getFirstProjectileStack(rwi),
+                    getSimilarCount(getFirstProjectileStack(rwi)));
         }
 
         Window mainWindow = MinecraftClient.getInstance().getWindow();
@@ -231,7 +231,7 @@ public class GuiItemDurability
         } else {
             armorSize=this.renderItems(context, 0, 0, false, RenderPos.left, 0, boots, leggings, colytra, chestplate, helmet);
         }
-        toolsSize=this.renderItems(context, 0, 0, false, RenderPos.right, 0, invSlots, mainHand, offHand, arrows);
+        toolsSize=this.renderItems(context, 0, 0, false, RenderPos.right, 0, invSlots, mainHand, offHand, projectiles);
         trinketsSize = this.renderItems(context, 0, 0, false, RenderPos.left, 0, trinkets);
         
         int totalHeight=(toolsSize.height > armorSize.height ? toolsSize.height : armorSize.height);
@@ -300,20 +300,19 @@ public class GuiItemDurability
         } else {
             this.renderItems(context, xposArmor, ypos, true, ConfigurationHandler.getCorner().isLeft() ? RenderPos.left : RenderPos.right, armorSize.width, helmet, chestplate, colytra, leggings, boots);
         }
-        this.renderItems(context, xposTools, ypos, true, ConfigurationHandler.getCorner().isRight() ? RenderPos.right : RenderPos.left, toolsSize.width, invSlots, mainHand, offHand, arrows);
+        this.renderItems(context, xposTools, ypos, true, ConfigurationHandler.getCorner().isRight() ? RenderPos.right : RenderPos.left, toolsSize.width, invSlots, mainHand, offHand, projectiles);
         this.renderItems(context, xposTrinkets, ypos, true, ConfigurationHandler.getCorner().isRight() ? RenderPos.right : RenderPos.left, trinketsSize.width, trinkets);
     }
     
-    private ItemIndicator damageOrEnergy(PlayerEntity player, EquipmentSlot slot) {
+    private ItemIndicator indicatorType(PlayerEntity player, EquipmentSlot slot) {
         ItemStack stack = player.getEquippedStack(slot);
-        if (stack.isDamageable()) {
+
+        if (haveTRCore && EnergyStorageUtil.isEnergyStorage(stack))
+            return new TREnergyIndicator(stack);
+        else if (stack.contains(DataComponentTypes.DAMAGE) || stack.contains(DataComponentTypes.MAX_DAMAGE)) {
             return new ItemDamageIndicator(stack);
-        } else if (haveTRCore) {
-            if (stack.getItem() instanceof EnergyHolder && stack.getNbt()!=null && stack.getNbt().contains("energy", 6)) {
-                return new TREnergyIndicator(stack);
-            }
         }
-        return new ItemDamageIndicator(stack);
+        return new ItemCountIndicator(stack,getSimilarCount(stack));
     }
     
     private void renderItemBreakingOverlay(DrawContext context, ItemStack itemStack, long timeDelta) {
@@ -325,15 +324,15 @@ public class GuiItemDurability
         
         context.fill(0, 0, mainWindow.getScaledWidth(), mainWindow.getScaledHeight(),
                 0xff0000+ ((int)(alpha*128)<<24));
-        
-        MatrixStack stack = RenderSystem.getModelViewStack();
-        stack.push();
+
+        Matrix4fStack stack = RenderSystem.getModelViewStack();
+        stack.pushMatrix();
         stack.scale(scale, scale, scale);
         RenderSystem.applyModelViewMatrix();
 
         context.drawItem(itemStack, (int)((xWarn)/scale-8), (int)((yWarn)/scale-8));
 
-        stack.pop();
+        stack.popMatrix();
         RenderSystem.applyModelViewMatrix();
         
         RenderSystem.setShaderColor(1.0f, 1.0f, 1.0f, 1.0f);
@@ -347,7 +346,7 @@ public class GuiItemDurability
             int posGood=0, posBad=0;
             for (StatusEffectInstance potioneffect : Ordering.natural().reverse().sortedCopy(collection)) {
                 if (potioneffect.shouldShowIcon()) {
-                    StatusEffect potion = potioneffect.getEffectType();
+                    StatusEffect potion = potioneffect.getEffectType().value();
                     int xpos = mainWindow.getScaledWidth();
                     int ypos;
                     if (potion.isBeneficial()) {     // isBeneficial
@@ -355,13 +354,17 @@ public class GuiItemDurability
                     } else {
                         posBad+=25;  xpos-=posBad;  ypos=41;
                     }
-                    int duration=potioneffect.getDuration();
-                    String show;
-                    if (duration > 1200)
-                        show=(duration/1200)+"m";
-                    else
-                        show=(duration/20)+"s";
-                    context.drawTextWithShadow(fontRenderer, show, xpos+2, ypos, ItemIndicator.color_yellow);
+                    if(potioneffect.isInfinite())
+                        context.drawTextWithShadow(fontRenderer,Text.translatable("effect.duration.infinite") , xpos+2, ypos, ItemIndicator.color_yellow);
+                    else {
+                        int duration = potioneffect.getDuration();
+                        String show;
+                        if (duration > 1200)
+                            show = (duration / 1200) + "m";
+                        else
+                            show = (duration / 20) + "s";
+                        context.drawTextWithShadow(fontRenderer, show, xpos + 2, ypos, ItemIndicator.color_yellow);
+                    }
                 }
             }
         }
@@ -371,16 +374,16 @@ public class GuiItemDurability
         RenderSize result=new RenderSize(0, 0);
         
         for (ItemIndicator item: items) {
-            if (item != null && !item.isEmpty() && item.isItemStackDamageable()) {
-                String displayString=item.getDisplayValue();
-                int width=fontRenderer.getWidth(displayString);
-                if (width>result.width)
-                    result.width=width;
-                if (reallyDraw) {
-                    int color=item.getDisplayColor();
-                    context.drawItem(item.getItemStack(), numberPos == RenderPos.left ? xpos+maxWidth-iconWidth-spacing : xpos, ypos+result.height);
-                    context.drawTextWithShadow(fontRenderer, displayString, numberPos != RenderPos.right ? xpos : xpos+iconWidth+spacing, ypos+result.height+fontRenderer.fontHeight/2 + (numberPos==RenderPos.over ? 10  : 0), color);
-                }
+            if (item != null && !item.isEmpty()) {
+                    String displayString=item.getDisplayValue();
+                    int width=fontRenderer.getWidth(displayString);
+                    if (width>result.width)
+                        result.width=width;
+                    if (reallyDraw) {
+                        int color=item.getDisplayColor();
+                        context.drawItem(item.getItemStack(), numberPos == RenderPos.left ? xpos+maxWidth-iconWidth-spacing : xpos, ypos+result.height);
+                        context.drawTextWithShadow(fontRenderer, displayString, numberPos != RenderPos.right ? xpos : xpos+iconWidth+spacing, ypos+result.height+fontRenderer.fontHeight/2 + (numberPos==RenderPos.over ? 10  : 0), color);
+                    }
                 result.height+=16;
             }
         }
@@ -391,17 +394,11 @@ public class GuiItemDurability
     
     public int getTrinketSlotCount(LivingEntity player) {
         Optional<TrinketComponent> component = TrinketsApi.getTrinketComponent(player);
-        if (component.isEmpty()) {
-            return 0;
-        }
-        return component.get().getEquipped(prdct -> true).size();
+        return component.map(trinketComponent -> trinketComponent.getEquipped(prdct -> true).size()).orElse(0);
     }
     
     public List<ItemStack> getTrinkets(LivingEntity player) {
         Optional<TrinketComponent> component = TrinketsApi.getTrinketComponent(player);
-        if (component.isEmpty()) {
-            return null;
-        }
-        return component.get().getEquipped(prdct -> true).stream().map(pair -> pair.getRight()).toList();
+        return component.map(trinketComponent -> trinketComponent.getEquipped(prdct -> true).stream().map(Pair::getRight).toList()).orElse(null);
     }
 }
