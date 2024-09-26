@@ -21,7 +21,6 @@ import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.font.TextRenderer;
 import net.minecraft.client.gui.DrawContext;
-import net.minecraft.client.render.item.ItemRenderer;
 import net.minecraft.client.util.Window;
 import net.minecraft.component.DataComponentTypes;
 import net.minecraft.entity.EquipmentSlot;
@@ -92,14 +91,17 @@ public class GuiItemDurability
 
         if (FabricLoader.getInstance().isModLoaded("techreborn") ) {
             haveTRCore = true;
+            LOGGER.info("Using TechReborn in DurabilityViewer");
         } else {
             LOGGER.info("DurabilityViewer did not find Tech Reborn");
         }
     }
 
-    private int getSimilarCount(ItemStack comparator){
+    private int getSimilarCount(final ItemStack comparator){
         int count = 0;
+        if(minecraft.player==null || minecraft.player.getInventory()==null || comparator == null) return count;
         for (final ItemStack stack : minecraft.player.getInventory().main){
+            if(stack==null) continue;
             if(ItemStack.areItemsAndComponentsEqual(stack,comparator)) count+= stack.getCount();
         }
         final ItemStack stack = minecraft.player.getOffHandStack();
